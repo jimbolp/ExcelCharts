@@ -227,7 +227,7 @@ namespace ExcelCharts
                             HideStopBtn(false);
                             isPrintCanceled = false;
                         }
-                        //dxData.SaveAndClose();//*/
+                        dxData.SaveFile();//*/
                     }
                     catch (Exception ex)
                     {

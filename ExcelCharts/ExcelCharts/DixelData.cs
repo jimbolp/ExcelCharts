@@ -9,6 +9,8 @@ using System.Threading;
 using System.Drawing.Printing;
 using System.Drawing;
 using OfficeOpenXml;
+using OfficeOpenXml.Drawing.Chart;
+using ExcelDrawing = OfficeOpenXml.Drawing.ExcelDrawing;
 
 namespace ExcelCharts
 {    
@@ -18,13 +20,17 @@ namespace ExcelCharts
         string saveFileDir = null;
         ExcelWorkbook workBook;
         FileInfo fi;
-        
+        FileInfo copyOfFi;
+        ExcelPackage ep;
+
+
         public DixelData(string filePath, bool print)
         {
             try
             {
-                fi = new FileInfo(filePath);
-                ExcelPackage ep = new ExcelPackage(fi);
+                fi = new FileInfo(filePath);                
+                copyOfFi = fi.CopyTo(Path.GetDirectoryName(filePath) + "\\temp.xlsx");
+                ep = new ExcelPackage(copyOfFi);
                 workBook = ep.Workbook;
                 SetSaveDirectory(filePath);
                 printNeeded = print;
@@ -149,17 +155,17 @@ namespace ExcelCharts
                         continue;
                     if (MainForm.isCancellationRequested)
                     {
-                        MessageBox.Show("Stopped!", "!");
+                        MessageBox.Show("Stopped!", "!");                        
                         return;
                     }
                     MainForm.ConvProgBar(1, true, sheetNumber, sheetCount);
                     ConvertDateCellsToText(xlWSheet, sheetNumber, sheetCount);
                     Thread trCharts = new Thread(() =>
                     {
-                        if (MainForm.TempCharts) ;
-                        //TempChartRanges(xlWSheet);
-                        if (MainForm.HumidCharts) ;
-                            //HumidChartRanges(xlWSheet);
+                        //if (MainForm.TempCharts)
+                          //TempChartRanges(xlWSheet);
+                        if (MainForm.HumidCharts)
+                          HumidChartRanges(xlWSheet);
 
                     });
                     treadsCharts.Add(trCharts);
@@ -174,39 +180,30 @@ namespace ExcelCharts
             load.Start();
             load.Join();            
         }
-        /*
-        private void HumidChartRanges(Worksheet xlWSheet)
+        
+        private void HumidChartRanges(ExcelWorksheet xlWSheet)
         {
             if (MainForm.isCancellationRequested)
             {
-                Dispose();
+                //Dispose();
                 return;
             }
             int startChartPositionLeft = 100;
             int startChartPositionTop = 100;
-            ChartObjects xlChartObjs;
+            List<ExcelChart> xlCharts = new List<ExcelChart>();
+            
+            ChartRange ChRange = null;
+            ExcelAddressBase usedRange = null;
             try
             {
-                xlChartObjs = xlWSheet.ChartObjects();
-            }
-            catch (Exception)
-            {
-                Dispose();
-                return;
-            }
-            ChartRange ChRange = null;
-            Range usedRange = null;
-            usedRange = xlWSheet.UsedRange;
-            /*try
-            {
-                usedRange = xlWSheet.UsedRange.SpecialCells(XlCellType.xlCellTypeVisible, Type.Missing);
+                usedRange = xlWSheet.Dimension;
             }
             catch(Exception e)
             {
-                usedRange = xlWSheet.UsedRange;
-                MainForm.LabelText(e.Message);
-            }
-            //Range firstCol = usedRange.Columns[1];
+                MainForm.LabelText(e.ToString());
+                return;
+            }            
+            /*
             Range combinedAreas = null;
             if (usedRange.Areas.Count > 1)
             {
@@ -219,17 +216,17 @@ namespace ExcelCharts
             if (combinedAreas != null)
                 usedRange = combinedAreas;
             //*/
-            /*
+            
             try
             {
-                //ChRange = new ChartRange('H', usedRange, printNeeded, MainForm.SpecialCase);
+                ChRange = new ChartRange('H', xlWSheet, usedRange, printNeeded, MainForm.SpecialCase);
             }
             catch (ArgumentException ae)
             {
                 MessageBox.Show(ae.Message);
                 return;
             }
-            int usedRows = usedRange.Rows.Count;
+            int usedRows = usedRange.Rows - 1;
             MainForm.ProgressBar(usedRows, true);
             
             bool firstDateOFRange = true;
@@ -238,7 +235,7 @@ namespace ExcelCharts
             cInfo.DateTimeFormat.ShortTimePattern = "hh.mm";
             cInfo.DateTimeFormat.DateSeparator = "/";
             string currDateCell;
-            object[,] xlRangeArr = usedRange.Value;
+            object[,] xlRangeArr = (object[,])xlWSheet.Cells[usedRange.ToString()].Value;
             
             for (int i = 1; i <= usedRows; ++i)
             {
@@ -253,7 +250,7 @@ namespace ExcelCharts
                     {
                         continue;
                     }
-                    ChRange.CreateChart(xlChartObjs, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
+                    ChRange.CreateChart(xlWSheet, xlCharts, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
                     continue;
                 }
                 //MainForm.WriteIntoLabel("Chart " + ChRange.ChartNumber + " ->  Row: " + ChRange.RowOfRange, 1);
@@ -271,7 +268,7 @@ namespace ExcelCharts
                         }
                         else
                         {
-                            ChRange.CreateChart(xlChartObjs, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
+                            ChRange.CreateChart(xlWSheet, xlCharts, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
                             
                             startChartPositionTop += 600;
                             ChRange.StartNewRange(i);
@@ -285,7 +282,7 @@ namespace ExcelCharts
 
                         if (i == usedRows)
                         {
-                            ChRange.CreateChart(xlChartObjs, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
+                            ChRange.CreateChart(xlWSheet, xlCharts, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
                             
                             startChartPositionTop += 600;
                             ChRange.StartNewRange(i);
@@ -295,7 +292,7 @@ namespace ExcelCharts
                             string nextCell = Convert.ToString(xlRangeArr[i+1, 1]);
                             if (IsFirstDayOfMonth(nextCell, cInfo))
                             {
-                                ChRange.CreateChart(xlChartObjs, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
+                                ChRange.CreateChart(xlWSheet, xlCharts, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
                                 startChartPositionTop += 600;
                                 ChRange.StartNewRange(i + 1);
                                 firstDateOFRange = true;
@@ -307,7 +304,7 @@ namespace ExcelCharts
                 {
                     if (ChRange.EnoughDataForChart())
                     {
-                        ChRange.CreateChart(xlChartObjs, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
+                        ChRange.CreateChart(xlWSheet, xlCharts, xlWSheet.Name, startChartPositionLeft, startChartPositionTop);
                         startChartPositionTop += 600;
                         ChRange.StartNewRange(i);
                         firstDateOFRange = true;
@@ -315,7 +312,8 @@ namespace ExcelCharts
                     ChRange.StartNewRange(i + 1);
                 }
             }
-        }//*/
+            ep.Save();//*/
+        }
         /*
         private void TempChartRanges(Worksheet xlWSheet)
         {
@@ -448,7 +446,7 @@ namespace ExcelCharts
             MainForm.ConvProgBar(0, false, sheetNumber, sheetCount);
 
             object xlNewRange = null;
-            object[,] test = null;
+            //object[,] test = null;
             try
             {
                 xlNewRange = (object[,])usedRange.Value;
@@ -472,6 +470,8 @@ namespace ExcelCharts
                         xlNewRange[i, 1] = "\'" + xlNewRange[i, 1];//*/
             }
             usedRange.Value = xlNewRange;
+            sheet.Cells[sheet.Dimension.Address].Value = usedRange.Value;
+            ep.Save();
             //MainForm.ConvProgBar(0, true);
         }
         private bool IsFirstDayOfMonth(string date, CultureInfo cInfo)
@@ -500,6 +500,40 @@ namespace ExcelCharts
                 return true;
             }
             return false;
+        }
+        public void SaveFile()
+        {
+            MainForm.ProgressBar(0, false);
+            MainForm.ConvProgBar(0, false, 1, 1);
+            //xlApp.Visible = true;
+            try
+            {
+                MainForm.SaveDialogBox(saveFileDir);
+                if (string.IsNullOrEmpty(MainForm.SaveFilePath))
+                {
+                    MessageBox.Show("File was not saved!");
+
+                    return;
+                }
+                else
+                {
+                    try
+                    {
+                        //FileInfo saveFi = new FileInfo(MainForm.SaveFilePath);
+                        ep.Save();
+                        //ep.SaveAs(saveFi);
+                    }
+                    catch(Exception e)
+                    {
+                        return;
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                return;
+            }
+            
         }
         /*
         public void SaveAndClose()
