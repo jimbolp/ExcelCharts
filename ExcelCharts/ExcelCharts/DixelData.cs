@@ -311,6 +311,7 @@ namespace ExcelCharts
                     }
                     ChRange.StartNewRange(i + 1);
                 }
+                ep.Save();
             }
             ep.Save();//*/
         }
